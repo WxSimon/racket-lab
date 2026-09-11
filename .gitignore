@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+._*
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 本地预览 / 临时产物
+.tmp/
+*.log
+
+# 依赖（本项目无构建步骤，仅在你决定本地化 three.js 时用得上）
+node_modules/
