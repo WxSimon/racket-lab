@@ -14,11 +14,11 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { pliesOf, RUBBER_TYPES, RUBBER_COLORS } from './catalog.js';
 
 /* ============ 尺寸常量 ============ */
-const HEAD_W = 150;            // 拍面宽
-const HEAD_TOP = 88;           // 拍面顶端 y
-const HEAD_BOTTOM = -70;       // 拍喉底端 y
-const HEAD_CY = 9;             // 拍面几何中心 y（用于胶皮外扩）
-const HANDLE_Y0 = -46;         // 柄根 y
+const HEAD_W = 153;            // 拍面最大宽度
+const HEAD_TOP = 89;           // 拍面顶端 y
+const HEAD_BOTTOM = -76.5;     // 拍喉底端 y
+const HEAD_CY = 6;             // 拍面几何中心 y（用于胶皮外扩）
+const HANDLE_Y0 = -52;         // 柄根 y（盖住拍喉收口）
 const HANDLE_BEVEL = 1.8;
 
 /** 面胶厚度（mm）—— 同时用于 3D 建模与 ITTF 合法性计算，保证两边口径一致 */
@@ -32,39 +32,56 @@ const Y_SHIFT = 39;            // 整拍上移，使包围盒居中
  * 横板（FL/ST/CO/AN）柄厚约 24.5mm；直板（CS 中式 / JS 日式）明显更短更薄，
  * 且日式直板比中式更窄、更接近方形。
  */
+/**
+ * 柄型参数。wTop / wMid / wTail 是**成品总宽**（mm），不是轮廓半宽 ——
+ * 构建时会自动扣掉倒角量，这样标称值就等于量出来的值，便于核对真拍规格。
+ * 真拍 FL 柄参考：根 30 / 腰 26 / 尾 34。
+ */
 export const HANDLE_SPECS = {
-  FL: { cn: '收腰 FL', len: 118, depth: 24.5, top: 30, midN: 15.5, tail: 23.5, pen: false },
-  ST: { cn: '直柄 ST', len: 118, depth: 24.5, top: 30, midN: 17.0, tail: 17.0, pen: false },
-  CO: { cn: '锥形 CO', len: 118, depth: 24.5, top: 31, midN: 15.5, tail: 14.0, pen: false },
-  AN: { cn: '解剖 AN', len: 118, depth: 24.5, top: 30, midN: 18.0, tail: 20.0, pen: false },
-  CS: { cn: '中直 CS', len: 82,  depth: 17.5, top: 23.0, midN: 15.0, tail: 12.5, pen: true },
-  JS: { cn: '日直 JS', len: 96,  depth: 20.5, top: 20.5, midN: 11.5, tail: 10.0, pen: true },
+  FL: { cn: '收腰 FL', len: 120, depth: 23.5, wTop: 30, wMid: 26, wTail: 34, pen: false },
+  ST: { cn: '直柄 ST', len: 120, depth: 23.5, wTop: 30, wMid: 29, wTail: 29, pen: false },
+  CO: { cn: '锥形 CO', len: 120, depth: 23.5, wTop: 31, wMid: 26, wTail: 24, pen: false },
+  AN: { cn: '解剖 AN', len: 120, depth: 23.5, wTop: 30, wMid: 27, wTail: 32, pen: false },
+  CS: { cn: '中直 CS', len: 84,  depth: 17.5, wTop: 32, wMid: 28, wTail: 24, pen: true },
+  JS: { cn: '日直 JS', len: 96,  depth: 20.5, wTop: 29, wMid: 23, wTail: 20, pen: true },
 };
 
 /* ============ 平面轮廓 ============ */
 
 /**
- * 拍面轮廓（150 × 158）
- * 真拍不是椭圆，而是「窄喉 → 中上部最宽 → 圆顶」的蛋形：
- * 喉部约 78mm 宽，最宽处偏上（约 55% 高度），顶部收成圆弧。
+ * 拍面轮廓控制点（半侧，从顶点到底端）。每点的 x 就是该高度的半宽，
+ * 所以宽度是可直接核对的目标值，不是硬凑贝塞尔凑出来的。
+ *
+ * 两个关键修正（对齐真拍）：
+ *   1. 最宽处 153mm 落在 y≈16（偏上），往下收得更快 → 蛋形，不是左右对称的椭圆
+ *   2. 底端收到 48mm 的圆弧收口，而不是收成一个尖点 —— 真拍拍喉本来就是一块
+ *      被手柄盖住的宽圆弧，两侧会从手柄旁边露出来
  */
+const BLADE_PROFILE = [
+  [0, 89], [30, 86], [53, 77], [68, 60], [75, 38],
+  [76.5, 16], [73, -6], [66, -28], [55, -48], [41, -63],
+  [24, -71], [12, -75], [0, -76.5],
+];
+
 function bladeShape() {
+  const pts = BLADE_PROFILE.map(([x, y]) => new THREE.Vector2(x, y));
+  for (let i = BLADE_PROFILE.length - 2; i >= 1; i--) {
+    pts.push(new THREE.Vector2(-BLADE_PROFILE[i][0], BLADE_PROFILE[i][1]));
+  }
+  pts.push(new THREE.Vector2(BLADE_PROFILE[0][0], BLADE_PROFILE[0][1]));
   const s = new THREE.Shape();
-  s.moveTo(0, HEAD_BOTTOM);
-  s.bezierCurveTo(21, -70, 33, -65, 39, -55);
-  s.bezierCurveTo(58, -36, 71, -12, 75, 16);
-  s.bezierCurveTo(78, 48, 60, 74, 30, 84);
-  s.bezierCurveTo(20, 87, 10, 88, 0, HEAD_TOP);
-  s.bezierCurveTo(-10, 88, -20, 87, -30, 84);
-  s.bezierCurveTo(-60, 74, -78, 48, -75, 16);
-  s.bezierCurveTo(-71, -12, -58, -36, -39, -55);
-  s.bezierCurveTo(-33, -65, -21, -70, 0, HEAD_BOTTOM);
+  s.moveTo(pts[0].x, pts[0].y);
+  s.splineThru(pts.slice(1));
   return s;
 }
 
 /** 拍柄轮廓（横板四型 + 直板两型） */
 function handleShape(kind) {
   const k = HANDLE_SPECS[kind] || HANDLE_SPECS.FL;
+  // 倒角会把轮廓向外撑出约一个 bevelSize，先扣掉，成品宽度才等于标称值
+  const hw = mm => Math.max(5, mm / 2 - HANDLE_BEVEL);
+  const top = hw(k.wTop), midN = hw(k.wMid), tail = hw(k.wTail);
+
   const s = new THREE.Shape();
   const y0 = HANDLE_Y0;
   const y1 = y0 - k.len;
@@ -73,12 +90,12 @@ function handleShape(kind) {
   const shoulder = k.pen ? 0.86 : 0.62;
   const tailEase = k.pen ? 0.99 : 0.94;
 
-  s.moveTo(k.top, y0);
-  s.bezierCurveTo(k.top * shoulder, y0 - k.len * 0.19, k.midN, y0 - k.len * 0.34, k.midN, midY);
-  s.bezierCurveTo(k.midN, y1 + k.len * 0.29, k.tail * tailEase, y1 + k.len * 0.1, k.tail, y1);
-  s.lineTo(-k.tail, y1);
-  s.bezierCurveTo(-k.tail * tailEase, y1 + k.len * 0.1, -k.midN, y1 + k.len * 0.29, -k.midN, midY);
-  s.bezierCurveTo(-k.midN, y0 - k.len * 0.34, -k.top * shoulder, y0 - k.len * 0.19, -k.top, y0);
+  s.moveTo(top, y0);
+  s.bezierCurveTo(top * shoulder, y0 - k.len * 0.19, midN, y0 - k.len * 0.34, midN, midY);
+  s.bezierCurveTo(midN, y1 + k.len * 0.29, tail * tailEase, y1 + k.len * 0.1, tail, y1);
+  s.lineTo(-tail, y1);
+  s.bezierCurveTo(-tail * tailEase, y1 + k.len * 0.1, -midN, y1 + k.len * 0.29, -midN, midY);
+  s.bezierCurveTo(-midN, y0 - k.len * 0.34, -top * shoulder, y0 - k.len * 0.19, -top, y0);
   s.closePath();
   return s;
 }
@@ -88,7 +105,8 @@ function handleShape(kind) {
 let _bladePoly = null;
 /** 拍面多边形（缓存），用于胶皮裁剪、颗粒落点判定、护边路径 */
 export function bladePolygon() {
-  if (!_bladePoly) _bladePoly = bladeShape().getPoints(26);
+  // 轮廓由 24 段样条组成，每段取 6 点已足够平滑；点太多只会拖慢颗粒的落点判定
+  if (!_bladePoly) _bladePoly = bladeShape().getPoints(6);
   return _bladePoly;
 }
 
@@ -157,6 +175,31 @@ function woodMaterial(color, roughness, textured) {
   return m;
 }
 
+let _grainTex = null;
+/**
+ * 面胶的细微粗糙度扰动。
+ * 没有它，整块面胶就是一张光滑渐变，灯光一打就像塑料壳；
+ * 真实面胶在灯下有细密的质感起伏。（粗糙度贴图必须走线性空间，不能标 sRGB）
+ */
+function rubberGrain() {
+  if (_grainTex) return _grainTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const img = g.createImageData(256, 256);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 186 + Math.random() * 69;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1 / 9, 1 / 9);   // UV 用的是轮廓坐标(mm)，约每 9mm 循环一次
+  _grainTex = t;
+  return t;
+}
+
 function topsheetMaterial(hex, rubber) {
   // 关键：清漆层要「窄而亮」，不能「宽而糊」。
   // clearcoatRoughness 一大，高光就摊平成一层灰雾，黑色胶皮会整片泛白。
@@ -166,6 +209,7 @@ function topsheetMaterial(hex, rubber) {
   return new THREE.MeshPhysicalMaterial({
     color: hex,
     roughness: rubber.tacky ? 0.42 : 0.55,
+    roughnessMap: rubberGrain(),
     metalness: 0,
     clearcoat: rubber.tacky ? 1.0 : 0.65,
     clearcoatRoughness: rubber.tacky ? 0.05 : 0.1,
@@ -174,9 +218,10 @@ function topsheetMaterial(hex, rubber) {
   });
 }
 
-/** 柄身中央的纵向长圆嵌条（两端半圆收口） */
-function inlayShape(len) {
-  const w = 4.4;
+/** 柄身中央的纵向长圆嵌条（两端半圆收口）。宽度按柄腰宽度成比例，换柄型不会显得突兀 */
+function inlayShape(spec) {
+  const len = spec.len;
+  const w = Math.min(4.6, Math.max(2.6, spec.wMid * 0.17));
   const t = HANDLE_Y0 - len * 0.15;
   const b = HANDLE_Y0 - len * 0.83;
   const s = new THREE.Shape();
@@ -209,22 +254,38 @@ function spongeMaterial(rubber, colorKey) {
 
 /* ============ 装配 ============ */
 
-/** 底板：逐层挤出后沿 Z 叠放 */
+/**
+ * 底板：逐层挤出后沿 Z 叠放。
+ *
+ * 板边不是直上直下的 —— 真拍出厂前要砂磨，所以边缘是微凸的圆弧：越靠外的层
+ * 轮廓收得越多，砂磨量约 0.016 × 半宽的平方分布。少了这一步，侧面看起来就是
+ * 一块挤出的塑料型材，而不是木头。
+ */
+const EDGE_ROUND = 0.016;
+
 function buildBlade(blade, reg) {
   const g = new THREE.Group();
   const plies = pliesOf(blade);
   const T = blade.thickness;
+  const basePoly = bladePolygon();
   let z = -T / 2;
+
   plies.forEach((p, i) => {
-    const geo = new THREE.ExtrudeGeometry(bladeShape(), {
-      depth: p.t, bevelEnabled: false, curveSegments: 44,
+    const zMid = z + p.t / 2;
+    const k = 1 - EDGE_ROUND * Math.pow(Math.abs(zMid) / (T / 2 || 1), 2);
+    const poly = k > 0.9995 ? basePoly : scalePoly(basePoly, k, 0, HEAD_CY);
+
+    const geo = new THREE.ExtrudeGeometry(shapeFromPoly(poly), {
+      depth: p.t, bevelEnabled: false,
     });
     geo.translate(0, 0, z);
     reg.track(geo);
+
     const outer = i === 0 || i === plies.length - 1;
     const mat = woodMaterial(p.c, p.r, outer);
     if (outer) mat.map.repeat.set(1 / HEAD_W, 1 / (HEAD_TOP - HEAD_BOTTOM));
     reg.track(mat);
+
     const m = new THREE.Mesh(geo, mat);
     m.castShadow = true; m.receiveShadow = true;
     g.add(m);
@@ -263,7 +324,7 @@ function buildHandle(blade, kind, reg) {
   // 深色柄身配深色嵌条会读成「挖了个洞」，所以柄身偏暗时自动把嵌条反过来提亮。
   const stripeHex = readableInlay(blade.handle.base, blade.handle.stripe);
   const stripeMat = woodMaterial(stripeHex, 0.5, false);
-  g.add(mk(inlayShape(spec.len), D + 0.9, 0.35, stripeMat));
+  g.add(mk(inlayShape(spec), D + 0.9, 0.35, stripeMat));
 
   // 金属标牌（圆柱穿透柄身，两面各露出一个圆）
   const lensGeo = new THREE.CylinderGeometry(lensR, lensR, D + 1.2, 32);
@@ -389,8 +450,8 @@ const VIEWS = {
   side:  { pos: [470, 62, 96],     target: [0, 8, 0] },
   // 目标点取拍面右缘中段的世界坐标：轮廓最宽点 (76, 16) 经组位移 +39 与
   // 1.6° 姿态旋转后约落在 (75.5, 57)
-  layer: { pos: [112, 62, 16],     target: [72, 55, 0] },
-  iso:   { pos: [300, 215, 330],   target: [0, 0, 0] },
+  layer: { pos: [133, 64, 27],     target: [73, 55, 0] },
+  iso:   { pos: [352, 250, 386],   target: [0, 14, 0] },
   top:   { pos: [0, 470, 120],     target: [0, 0, 0] },
 };
 

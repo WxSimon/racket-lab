@@ -30,20 +30,22 @@ const STRUCT = {
   w5:     [['limba', 0.55], ['ayous', 1.05], ['kiri', 2.6], ['ayous', 1.05], ['limba', 0.55]],
   // 7 层纯木
   w7:     [['limba', 0.55], ['ayous', 0.85], ['kiri', 0.9], ['ayous', 1.3], ['kiri', 0.9], ['ayous', 0.85], ['limba', 0.55]],
+  // 纤维层统一按 0.22mm。这是「纤维 + 浸渍树脂」的复合层厚度，
+  // 比单看纤维布厚一点，但这样在 1:1 尺度下才看得见那道深色线 —— 0.15mm 只有 3~4 像素，等于没做。
   // 5+2 外置芳碳
-  alcOut: [['limba', 0.55], ['alc', 0.15], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['alc', 0.15], ['limba', 0.55]],
+  alcOut: [['limba', 0.55], ['alc', 0.22], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['alc', 0.22], ['limba', 0.55]],
   // 5+2 内置芳碳
-  alcIn:  [['limba', 0.6], ['ayous', 1.0], ['alc', 0.15], ['kiri', 2.3], ['alc', 0.15], ['ayous', 1.0], ['limba', 0.6]],
+  alcIn:  [['limba', 0.6], ['ayous', 1.0], ['alc', 0.22], ['kiri', 2.3], ['alc', 0.22], ['ayous', 1.0], ['limba', 0.6]],
   // 5+2 外置 ZLC
-  zlcOut: [['limba', 0.55], ['zlc', 0.15], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['zlc', 0.15], ['limba', 0.55]],
+  zlcOut: [['limba', 0.55], ['zlc', 0.22], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['zlc', 0.22], ['limba', 0.55]],
   // 5+2 内置 ZLC
-  zlcIn:  [['limba', 0.6], ['ayous', 1.0], ['zlc', 0.15], ['kiri', 2.3], ['zlc', 0.15], ['ayous', 1.0], ['limba', 0.6]],
+  zlcIn:  [['limba', 0.6], ['ayous', 1.0], ['zlc', 0.22], ['kiri', 2.3], ['zlc', 0.22], ['ayous', 1.0], ['limba', 0.6]],
   // 5+2 Super ZLC
-  szlcOut:[['limba', 0.55], ['szlc', 0.15], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['szlc', 0.15], ['limba', 0.55]],
+  szlcOut:[['limba', 0.55], ['szlc', 0.22], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['szlc', 0.22], ['limba', 0.55]],
   // 5+2 ZL 纤维（无碳，软弹）
-  zlfOut: [['limba', 0.55], ['zlf', 0.2], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['zlf', 0.2], ['limba', 0.55]],
+  zlfOut: [['limba', 0.55], ['zlf', 0.25], ['ayous', 0.9], ['kiri', 2.6], ['ayous', 0.9], ['zlf', 0.25], ['limba', 0.55]],
   // 3+2 碳素（桧木面材，厚大芯）
-  c3x2:   [['hinoki', 1.0], ['carbon', 0.25], ['kiri', 3.1], ['carbon', 0.25], ['hinoki', 1.0]],
+  c3x2:   [['hinoki', 1.0], ['carbon', 0.28], ['kiri', 3.1], ['carbon', 0.28], ['hinoki', 1.0]],
   // 7 层硬木（黑檀/玫瑰面材）
   hw7:    [['ebony', 0.6], ['ayous', 0.9], ['kiri', 1.1], ['ayous', 1.0], ['kiri', 1.1], ['ayous', 0.9], ['ebony', 0.6]],
   // 5+2 碳素（外置）
