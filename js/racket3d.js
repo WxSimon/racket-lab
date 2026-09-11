@@ -55,29 +55,28 @@ export const HANDLE_SPECS = {
 /* ============ 平面轮廓 ============ */
 
 /**
- * 拍面轮廓控制点（半侧，从顶点到底端）。每点的 x 就是该高度的半宽，
- * 所以宽度是可直接核对的目标值，不是硬凑贝塞尔凑出来的。
+ * 拍面轮廓 —— 解析椭圆，不是手凑控制点。
  *
- * 两个关键修正（对齐真拍）：
- *   1. 最宽处 153mm 落在 y≈16（偏上），往下收得更快 → 蛋形，不是左右对称的椭圆
- *   2. 底端收到 48mm 的圆弧收口，而不是收成一个尖点 —— 真拍拍喉本来就是一块
- *      被手柄盖住的宽圆弧，两侧会从手柄旁边露出来
+ * 真拍板面是 150 × 157（蝴蝶标准尺寸），这组尺寸本身就落在一个椭圆上：
+ *   a = 75（半宽）、b = 88（半高）、圆心 y = 1
+ *   顶点 y=89 ／ 最宽 150mm 在 y=1（距顶 56%，偏上）／ 底端 y=-87
+ *   柄根 y=-68 处宽 93mm —— 这 93mm 就是「拍肩」本身
+ *
+ * 之前用「控制点 + splineThru」是个错误做法：moveTo(顶点) 之后再 splineThru
+ * 一个不含顶点的数组，两者之间会被拉出一条**直线弦**，顶部因此被削成一个尖。
+ * 实测顶部 2mm 处宽度只有 9.7mm（正圆应为 34.4mm）就是这条弦造成的。
+ * 改成直接对椭圆求值采样，既没有样条端点问题，宽度也处处可解析核对。
  */
-const BLADE_PROFILE = [
-  [0, 89], [45, 79], [62, 66], [69, 48], [73, 26],
-  [75, 2], [73.5, -20], [68, -40], [60, -56], [47, -68],
-  [31, -79], [0, -87],
-];
+const HEAD_A = 75;                       // 椭圆半宽
+const HEAD_B = HEAD_TOP - HEAD_CY;       // 椭圆半高
+// 段数要够密：顶部曲率半径只有 64mm，段太稀时弦逼近会把顶点「削平」成一个小平面
+const OUTLINE_SEGMENTS = 256;
 
 function bladeShape() {
-  const pts = BLADE_PROFILE.map(([x, y]) => new THREE.Vector2(x, y));
-  for (let i = BLADE_PROFILE.length - 2; i >= 1; i--) {
-    pts.push(new THREE.Vector2(-BLADE_PROFILE[i][0], BLADE_PROFILE[i][1]));
-  }
-  pts.push(new THREE.Vector2(BLADE_PROFILE[0][0], BLADE_PROFILE[0][1]));
+  const poly = bladePolygon();
   const s = new THREE.Shape();
-  s.moveTo(pts[0].x, pts[0].y);
-  s.splineThru(pts.slice(1));
+  s.setFromPoints(poly);
+  s.closePath();
   return s;
 }
 
@@ -111,8 +110,16 @@ function handleShape(kind) {
 let _bladePoly = null;
 /** 拍面多边形（缓存），用于胶皮裁剪、颗粒落点判定、护边路径 */
 export function bladePolygon() {
-  // 轮廓由 24 段样条组成，每段取 6 点已足够平滑；点太多只会拖慢颗粒的落点判定
-  if (!_bladePoly) _bladePoly = bladeShape().getPoints(6);
+  if (!_bladePoly) {
+    _bladePoly = [];
+    for (let i = 0; i < OUTLINE_SEGMENTS; i++) {
+      const t = (2 * Math.PI * i) / OUTLINE_SEGMENTS;
+      _bladePoly.push(new THREE.Vector2(
+        HEAD_A * Math.sin(t),
+        HEAD_CY + HEAD_B * Math.cos(t),
+      ));
+    }
+  }
   return _bladePoly;
 }
 
