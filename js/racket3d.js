@@ -11,14 +11,19 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { pliesOf, RUBBER_TYPES, RUBBER_COLORS } from './catalog.js';
+import { pliesOf, RUBBER_TYPES, RUBBER_COLORS, HANDLE_STYLE } from './catalog.js';
 
 /* ============ 尺寸常量 ============ */
-const HEAD_W = 153;            // 拍面最大宽度
+const HEAD_W = 150;            // 拍面最大宽度
 const HEAD_TOP = 89;           // 拍面顶端 y
-const HEAD_BOTTOM = -76.5;     // 拍喉底端 y
-const HEAD_CY = 6;             // 拍面几何中心 y（用于胶皮外扩）
-const HANDLE_Y0 = -52;         // 柄根 y（盖住拍喉收口）
+const HEAD_BOTTOM = -87;       // 轮廓底端 y（拍舌，被手柄盖住）
+const HEAD_CY = 1;             // 拍面几何中心 y（用于胶皮外扩）
+/**
+ * 柄根 y。这个值决定「有效拍面高度」= HEAD_TOP - HANDLE_Y0。
+ * 真拍 Viscaria 板面 157mm，所以取 -68；之前是 -52，只有 141mm —— 拍面短了
+ * 16mm，宽高比接近 1:1，这才是它看着像个圆盘的直接原因。
+ */
+const HANDLE_Y0 = -68;
 const HANDLE_BEVEL = 1.8;
 
 /** 面胶厚度（mm）—— 同时用于 3D 建模与 ITTF 合法性计算，保证两边口径一致 */
@@ -38,10 +43,11 @@ const Y_SHIFT = 39;            // 整拍上移，使包围盒居中
  * 真拍 FL 柄参考：根 30 / 腰 26 / 尾 34。
  */
 export const HANDLE_SPECS = {
-  FL: { cn: '收腰 FL', len: 120, depth: 23.5, wTop: 30, wMid: 26, wTail: 34, pen: false },
-  ST: { cn: '直柄 ST', len: 120, depth: 23.5, wTop: 30, wMid: 29, wTail: 29, pen: false },
-  CO: { cn: '锥形 CO', len: 120, depth: 23.5, wTop: 31, wMid: 26, wTail: 24, pen: false },
-  AN: { cn: '解剖 AN', len: 120, depth: 23.5, wTop: 30, wMid: 27, wTail: 32, pen: false },
+  // 蝴蝶 Viscaria FL 官方柄规格：100 × 25 × 34（长 × 厚 × 最宽）
+  FL: { cn: '收腰 FL', len: 103, depth: 23.5, wTop: 30, wMid: 26, wTail: 34, pen: false },
+  ST: { cn: '直柄 ST', len: 103, depth: 23.5, wTop: 30, wMid: 29, wTail: 29, pen: false },
+  CO: { cn: '锥形 CO', len: 103, depth: 23.5, wTop: 31, wMid: 26, wTail: 24, pen: false },
+  AN: { cn: '解剖 AN', len: 103, depth: 23.5, wTop: 30, wMid: 27, wTail: 32, pen: false },
   CS: { cn: '中直 CS', len: 84,  depth: 17.5, wTop: 32, wMid: 28, wTail: 24, pen: true },
   JS: { cn: '日直 JS', len: 96,  depth: 20.5, wTop: 29, wMid: 23, wTail: 20, pen: true },
 };
@@ -58,9 +64,9 @@ export const HANDLE_SPECS = {
  *      被手柄盖住的宽圆弧，两侧会从手柄旁边露出来
  */
 const BLADE_PROFILE = [
-  [0, 89], [30, 86], [53, 77], [68, 60], [75, 38],
-  [76.5, 16], [73, -6], [66, -28], [55, -48], [41, -63],
-  [24, -71], [12, -75], [0, -76.5],
+  [0, 89], [45, 79], [62, 66], [69, 48], [73, 26],
+  [75, 2], [73.5, -20], [68, -40], [60, -56], [47, -68],
+  [31, -79], [0, -87],
 ];
 
 function bladeShape() {
@@ -218,32 +224,59 @@ function topsheetMaterial(hex, rubber) {
   });
 }
 
-/** 柄身中央的纵向长圆嵌条（两端半圆收口）。宽度按柄腰宽度成比例，换柄型不会显得突兀 */
-function inlayShape(spec) {
-  const len = spec.len;
-  const w = Math.min(4.6, Math.max(2.6, spec.wMid * 0.17));
-  const t = HANDLE_Y0 - len * 0.15;
-  const b = HANDLE_Y0 - len * 0.83;
-  const s = new THREE.Shape();
-  s.moveTo(-w, t - w);
-  s.lineTo(-w, b + w);
-  s.absarc(0, b + w, w, Math.PI, Math.PI * 2, false);
-  s.lineTo(w, t - w);
-  s.absarc(0, t - w, w, 0, Math.PI, false);
-  s.closePath();
-  return s;
+/**
+ * 手柄饰条布局。x 是相对局部半宽的横向偏移（-1 左缘 ~ 1 右缘），
+ * w 是饰条半宽占比，k 决定取柄色里的哪一个：grain 深色 / stripe 对比色。
+ * 偏移与宽度都按局部柄宽取比例，所以饰条会跟着手柄的收腰走，换柄型也不会跑出去。
+ */
+const HANDLE_LAYOUTS = {
+  center: [{ x: 0.00, w: 0.17, k: 'stripe' }],
+  twin:   [{ x: -0.60, w: 0.13, k: 'stripe' }, { x: 0.60, w: 0.13, k: 'stripe' }],
+  edge:   [{ x: -0.86, w: 0.11, k: 'grain' }, { x: 0.86, w: 0.11, k: 'grain' }],
+  trio:   [{ x: -0.72, w: 0.10, k: 'grain' }, { x: 0.30, w: 0.16, k: 'stripe' }],
+  line:   [{ x: 0.00, w: 0.06, k: 'grain' }],
+};
+
+/** 扫描线求轮廓在高度 y 处的半宽 */
+function halfWidthAt(poly, y) {
+  let w = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j], b = poly[i];
+    if ((a.y > y) !== (b.y > y)) {
+      const t = (y - a.y) / (b.y - a.y);
+      w = Math.max(w, Math.abs(a.x + (b.x - a.x) * t));
+    }
+  }
+  return w;
 }
 
-/** 保证嵌条与柄身之间有足够明度差，避免深色叠深色看不出层次 */
-function readableInlay(baseHex, stripeHex) {
-  const base = new THREE.Color(baseHex);
-  const stripe = new THREE.Color(stripeHex);
-  const hsl = {};
-  base.getHSL(hsl);
-  if (hsl.l >= 0.26) return stripeHex;              // 浅柄身配深嵌条，本来就好读
-  const light = new THREE.Color('#cbaa78');         // 深柄身改用浅木色嵌条
-  stripe.lerp(light, 0.62);
-  return '#' + stripe.getHexString();
+/** 单条纵向饰条的多边形：沿柄长逐层采样，裁进手柄轮廓内 */
+function bandShape(kind, spec, xf, wf) {
+  const outline = handleShape(kind).getPoints(36);
+  const yTop = HANDLE_Y0 - spec.len * 0.05;
+  const yBot = HANDLE_Y0 - spec.len * 0.95;
+  const margin = HANDLE_BEVEL + 0.5;   // 让开倒角，保证饰条落在平面上而不是翻到侧棱
+  const left = [], right = [];
+  const steps = 36;
+
+  for (let i = 0; i <= steps; i++) {
+    const y = yTop + (yBot - yTop) * (i / steps);
+    const W = halfWidthAt(outline, y) - margin;
+    if (W <= 1.5) continue;
+    const cx = xf * W;
+    const hw = Math.max(0.4, wf * W);
+    const a = Math.max(cx - hw, -W);
+    const b = Math.min(cx + hw, W);
+    if (b - a < 0.5) continue;
+    left.push(new THREE.Vector2(a, y));
+    right.push(new THREE.Vector2(b, y));
+  }
+  if (left.length < 3) return null;
+
+  const s = new THREE.Shape();
+  s.setFromPoints(left.concat(right.reverse()));
+  s.closePath();
+  return s;
 }
 
 function spongeMaterial(rubber, colorKey) {
@@ -320,36 +353,48 @@ function buildHandle(blade, kind, reg) {
   baseMat.map.repeat.set(1 / 64, 1 / 130);
   g.add(mk(handleShape(kind), D, HANDLE_BEVEL, baseMat));
 
-  // 中央嵌条：纵向长圆槽，比柄身厚 0.9mm，两面各凸出一点。
-  // 深色柄身配深色嵌条会读成「挖了个洞」，所以柄身偏暗时自动把嵌条反过来提亮。
-  const stripeHex = readableInlay(blade.handle.base, blade.handle.stripe);
-  const stripeMat = woodMaterial(stripeHex, 0.5, false);
-  g.add(mk(inlayShape(spec), D + 0.9, 0.35, stripeMat));
-
-  // 金属标牌（圆柱穿透柄身，两面各露出一个圆）
-  const lensGeo = new THREE.CylinderGeometry(lensR, lensR, D + 1.2, 32);
-  lensGeo.rotateX(Math.PI / 2);
-  lensGeo.translate(0, lensY, 0);
-  reg.track(lensGeo);
-  const lensMat = new THREE.MeshStandardMaterial({
-    color: '#c9ced6', metalness: 0.95, roughness: 0.22,
+  // 纵向饰条：按该型号的布局铺 1~3 条，比柄身厚 0.9mm，两面各凸出一点。
+  // 颜色直接取该底板自己的柄色，不再统一「提亮」—— 之前那样会把所有深色手柄
+  // 的饰条都归一成同一个奶油色，等于把手柄之间的差异抹掉了。
+  const style = HANDLE_STYLE[blade.id] || { layout: 'center', lens: 'round' };
+  const layout = HANDLE_LAYOUTS[style.layout] || HANDLE_LAYOUTS.center;
+  layout.forEach(b => {
+    const shape = bandShape(kind, spec, b.x, b.w);
+    if (!shape) return;
+    const hex = b.k === 'grain' ? blade.handle.grain : blade.handle.stripe;
+    g.add(mk(shape, D + 0.9, 0.3, woodMaterial(hex, 0.52, false)));
   });
-  reg.track(lensMat);
-  const lens = new THREE.Mesh(lensGeo, lensMat);
-  lens.castShadow = true;
-  g.add(lens);
 
-  // 标牌内圈，做出内凹质感
-  const ringGeo = new THREE.TorusGeometry(lensR * 0.66, lensR * 0.11, 10, 28);
-  reg.track(ringGeo);
-  const ringMat = new THREE.MeshStandardMaterial({ color: '#7d838c', metalness: 0.9, roughness: 0.3 });
-  reg.track(ringMat);
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.position.set(0, lensY, D / 2 + 0.5);
-  g.add(ring);
-  const ring2 = ring.clone();
-  ring2.position.z = -(D / 2 + 0.5);
-  g.add(ring2);
+  if (style.lens !== 'none') {
+    // 标牌：圆柱穿透柄身，两面各露出一个；oval 压扁成竖椭圆
+    const lensGeo = new THREE.CylinderGeometry(lensR, lensR, D + 1.2, 32);
+    lensGeo.rotateX(Math.PI / 2);
+    lensGeo.translate(0, lensY, 0);
+    if (style.lens === 'oval') lensGeo.scale(0.72, 1, 1);
+    reg.track(lensGeo);
+    // 标牌：金属度不能拉满。暗环境里纯金属只会反射到暗部，圆牌会变成一个黑洞，
+    // 真拍上的标牌是带涂层的浅色金属，偏漫反射。
+    const lensMat = new THREE.MeshStandardMaterial({
+      color: '#e2e6ea', metalness: 0.45, roughness: 0.3,
+    });
+    reg.track(lensMat);
+    const lens = new THREE.Mesh(lensGeo, lensMat);
+    lens.castShadow = true;
+    g.add(lens);
+
+    // 内圈，做出内凹质感
+    const ringGeo = new THREE.TorusGeometry(lensR * 0.66, lensR * 0.11, 10, 28);
+    if (style.lens === 'oval') ringGeo.scale(0.72, 1, 1);
+    reg.track(ringGeo);
+    const ringMat = new THREE.MeshStandardMaterial({ color: '#7d838c', metalness: 0.9, roughness: 0.3 });
+    reg.track(ringMat);
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.set(0, lensY, D / 2 + 0.5);
+    g.add(ring);
+    const ring2 = ring.clone();
+    ring2.position.z = -(D / 2 + 0.5);
+    g.add(ring2);
+  }
 
   return g;
 }

@@ -238,7 +238,7 @@ export const BLADES = [
     note: '七层纯木，力量与控制的平衡出色，欧洲选手偏爱的全面型底板。' },
   { id: 'stratus-pw', brand: 'Tibhar', brandCn: '挺拔', name: 'Stratus Power Wood', cn: '斯特拉图',
     struct: 'w5', thickness: 5.9, speed: 77, spin: 80, control: 88, hard: 50, weight: 85,
-    handle: H('#c8a878', '#8f6f42', '#3a3a3a'), price: 680, tag: '',
+    handle: H('#c9a06a', '#8a6236', '#4a5a6a'), price: 680, tag: '',
     note: '偏软的五夹，形变好、容错高，配德系套胶上手非常舒服。' },
 ];
 
@@ -617,6 +617,70 @@ export const RUBBERS = [
     sponge: SP.esn, colors: ['black', 'red'], weight: 43, price: 60, tag: '',
     note: '轻量化设计的国产粘性胶，配重友好，适合直板横打。' },
 ];
+
+/**
+ * 各型号手柄的饰条布局与标牌样式。
+ *
+ * 说明：手柄是木片叠压出来的，所以平面看得到 1~3 条纵向饰条。各家手柄的典型
+ * 做法不同 —— 蝴蝶是「圆金属标牌 + 一到两条对比饰条」，斯帝卡多为素木加一道
+ * 细线，红双喜常带彩色条。这里按这些品牌特征归纳，**属于风格化还原，
+ * 不是逐型号对着实物描的**；颜色则取自每块底板自己的柄色。
+ *
+ * layout: center 居中一条 / twin 两侧对称 / edge 靠边 / trio 不对称三条 / line 素木细线
+ * lens:   round 圆标牌 / oval 椭圆 / none 无
+ */
+export const HANDLE_STYLE = {
+  // 蝴蝶 —— 圆标牌，饰条偏简洁
+  viscaria:        { layout: 'center', lens: 'round' },
+  'boll-alc':      { layout: 'twin',   lens: 'round' },
+  'boll-spirit':   { layout: 'twin',   lens: 'round' },
+  'boll-zlc':      { layout: 'edge',   lens: 'round' },
+  'boll-zlf':      { layout: 'edge',   lens: 'round' },
+  'zjk-alc':       { layout: 'twin',   lens: 'round' },
+  'zjk-zlc':       { layout: 'center', lens: 'round' },
+  'zjk-szlc':      { layout: 'center', lens: 'oval'  },
+  'fzd-alc':       { layout: 'twin',   lens: 'round' },
+  'fzd-zlc':       { layout: 'edge',   lens: 'round' },
+  'harimoto-alc':  { layout: 'trio',   lens: 'oval'  },
+  'harimoto-inner':{ layout: 'trio',   lens: 'oval'  },
+  'harimoto-zlc':  { layout: 'edge',   lens: 'oval'  },
+  'innerforce-alc':{ layout: 'center', lens: 'round' },
+  'innerforce-zlc':{ layout: 'center', lens: 'round' },
+  korbel:          { layout: 'line',   lens: 'round' },
+  'korbel-sk7':    { layout: 'line',   lens: 'round' },
+  primorac:        { layout: 'line',   lens: 'round' },
+  maze:            { layout: 'twin',   lens: 'round' },
+  'schlager-carbon': { layout: 'center', lens: 'oval' },
+  amultart:        { layout: 'trio',   lens: 'oval'  },
+  photino:         { layout: 'edge',   lens: 'round' },
+  'ovtcharov-tc':  { layout: 'twin',   lens: 'round' },
+  'kong-linghui':  { layout: 'line',   lens: 'round' },
+  'sk7-classic':   { layout: 'line',   lens: 'round' },
+  'hadraw-5':      { layout: 'line',   lens: 'round' },
+  'hadraw-vr':     { layout: 'twin',   lens: 'round' },
+
+  // 红双喜 —— 素木为主，常带一条彩色条，无蝴蝶式标牌
+  hl5:             { layout: 'center', lens: 'none' },
+  hl5x:            { layout: 'center', lens: 'none' },
+  hl3:             { layout: 'twin',   lens: 'none' },
+  'fangbo-carbon': { layout: 'trio',   lens: 'none' },
+  hao2:            { layout: 'line',   lens: 'none' },
+
+  // 斯帝卡 —— 素木 + 细线，无标牌
+  ebenholz7:       { layout: 'line',   lens: 'none' },
+  rosewood7:       { layout: 'line',   lens: 'none' },
+  clipper:         { layout: 'line',   lens: 'none' },
+  carbo76:         { layout: 'twin',   lens: 'none' },
+
+  // 尼塔库 / 亚萨卡 / 挺拔
+  acoustic:        { layout: 'line',   lens: 'none' },
+  violin:          { layout: 'line',   lens: 'none' },
+  latika:          { layout: 'line',   lens: 'none' },
+  'malin-carbon':  { layout: 'center', lens: 'none' },
+  yeo:             { layout: 'twin',   lens: 'none' },
+  'force-pro':     { layout: 'center', lens: 'none' },
+  'stratus-pw':    { layout: 'twin',   lens: 'none' },
+};
 
 export const BRANDS = [...new Set(BLADES.map(b => b.brand))];
 export const RUBBER_BRANDS = [...new Set(RUBBERS.map(r => r.brand))];
